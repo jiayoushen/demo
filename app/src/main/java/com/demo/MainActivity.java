@@ -110,6 +110,7 @@ public class MainActivity extends BaseActivity {
             public void OnGifPlayOver() {
             }
         });
+
         fa.composeGif(this,bitmaps,delayTime,isFinishing(),gif);
     }
 }
