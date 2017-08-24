@@ -4,6 +4,7 @@ import android.app.Application;
 
 import com.demo.R;
 import com.iflytek.cloud.SpeechUtility;
+import com.zhy.autolayout.config.AutoLayoutConifg;
 
 /**
  * Created by Administrator on 2017/8/14.
@@ -26,5 +27,6 @@ public class ETApp extends Application {
         // 以下语句用于设置日志开关（默认开启），设置成false时关闭语音云SDK日志打印
         // Setting.setShowLog(false);
         super.onCreate();
+        AutoLayoutConifg.getInstance().useDeviceSize();
     }
 }
