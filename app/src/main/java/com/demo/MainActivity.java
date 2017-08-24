@@ -53,10 +53,14 @@ public class MainActivity extends BaseActivity {
     private MediaPlayer mPlayer;
     private Handler mHandler; // 回调回主线程使用
 
-    int[] resource={R.mipmap.role_travel1_1,R.mipmap.role_travel1_3};
+    private int[] resource = {R.mipmap.role_travel1_1, R.mipmap.role_travel1_3};
     // 模拟5句对话 机器→人→机器→人
-    String[] dialogue_resource={"aaa","bbb","ccc","ddd","eee"};
-    String[] dialogue_resource_path={"/sdcard/msc/tts1.wav","/sdcard/msc/tts3.wav", "/sdcard/msc/tts5.wav"};
+    private String[] dialogue_resource = {"aaa", "bbb", "ccc", "ddd", "eee"};
+    private String[] dialogue_resource_path = {"/sdcard/msc/tts1.wav", "/sdcard/msc/tts3.wav", "/sdcard/msc/tts5.wav"};
+    private int dr = 0;
+    private int drp = 0;
+    // 播放顺序
+    private Boolean order;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,7 +104,7 @@ public class MainActivity extends BaseActivity {
 
     @Override
     protected void onDestroy() {
-        if(mPlayer != null) {
+        if (mPlayer != null) {
             mPlayer.stop();
             mPlayer.release();
             mPlayer = null;
@@ -109,46 +113,44 @@ public class MainActivity extends BaseActivity {
     }
 
     @OnClick(R.id.bt_start)
-    public void OnClick(){
-        setScene(R.mipmap.scene_cabin);
+    public void OnClick() {
+        setScene(R.mipmap.scene_check_in);
 
-        int j=0;
-        for (int i=0; i<dialogue_resource.length;) {
-//            speak("/sdcard/msc/tts.wav",dialogue_resource[i]);
-            speak(dialogue_resource[i],dialogue_resource_path[j]);
-            i+=2;
-            j+=1;
+        //        for (dr=0; dr<dialogue_resource.length;) {
+        //            speak("/sdcard/msc/tts.wav",dialogue_resource[i]);
+        if (dr == 0 && drp == 0) {
+            oSpeak(true,dialogue_resource[dr]);
         }
-    }
-
-    private void record_eval(String text) {
-        L.i("record_eval = "+text);
-        ise = Ise.createIse(this);
-//        String text = "hellow world!";
-        ise.evaluation(text, new Ise.FSMListener() {
-            @Override
-            public void onFiniteStateMachine(int result_state) {
-                L.i("result_state = " + result_state);
-                switch (result_state) {
-                    case NO_ANSWER:
-                        break;
-                    case LOW_SCORE:
-                        break;
-                    case NOT_STANDARD_ANSWER:
-                        break;
-                    case VOICE_ORDER:
-                        break;
-                }
-            }
-        });
+        //        }
     }
 
     /**
      * 播放对话文件
-     * @param speak         第一个人
-     * @param speak_path    对话的路径
+     * 人→机器→人
+     * @param o1
+     * @param speak      第一个人
      */
-    private void speak(final String speak,String speak_path) {
+    private void oSpeak(Boolean o1, String speak) {
+        /**
+         * o1为true时，人→机器→人
+         * 将第一个人分离出来，dr+=1，之后 机器→人 作为一组对话
+         */
+        if (o1) {
+            dr += 1;
+            order = o1;
+            record_eval(speak);
+            Glide.with(MainActivity.this).load(resource[0]).asBitmap().override(600, 600).into(gif);
+        }
+//        speak(dialogue_resource[dr], dialogue_resource_path[drp]);
+    }
+
+    /**
+     * 播放对话文件
+     * 机器→人→机器→人
+     * @param speak      第一个人
+     * @param speak_path 对话的路径
+     */
+    private void speak(final String speak, String speak_path) {
         try {
             if (mPlayer != null) {
                 mPlayer.reset();
@@ -157,9 +159,10 @@ public class MainActivity extends BaseActivity {
             }
             mPlayer = new MediaPlayer();
             mPlayer.reset();
-            L.i("speak = "+speak_path);
+            L.i("speak = " + speak_path);
             mPlayer.setDataSource(speak_path);
-            mPlayer.prepareAsync();
+            //            mPlayer.prepareAsync();
+            mPlayer.prepare();
             mPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
                 @Override
                 public void onPrepared(MediaPlayer mp) {
@@ -178,13 +181,13 @@ public class MainActivity extends BaseActivity {
                     mPlayer = null;
 
                     // 对话资源结束的时候停止动画
-                    Glide.with(MainActivity.this).load(resource[0]).asBitmap().into(gif);
+                    Glide.with(MainActivity.this).load(resource[0]).asBitmap().override(600, 600).into(gif);
 
                     Message msg = Message.obtain();
                     msg.what = TTS_WHAT;
                     msg.obj = speak;
-                    L.i("onCompletion = "+speak);
-                    mHandler.sendMessageDelayed(msg,100);
+                    L.i("onCompletion = " + speak);
+                    mHandler.sendMessageDelayed(msg, 100);
                 }
             });
         } catch (IOException e) {
@@ -192,16 +195,67 @@ public class MainActivity extends BaseActivity {
         }
     }
 
+    private void record_eval(String text) {
+        L.i("record_eval = " + text);
+        ise = Ise.createIse(this);
+        //        String text = "hellow world!";
+        ise.evaluation(text, new Ise.FSMListener() {
+            @Override
+            public void onFiniteStateMachine(int result_state) {
+                L.i("result_state = " + result_state);
+                switch (result_state) {
+                    case NO_ANSWER:
+                        break;
+                    case LOW_SCORE:
+                        break;
+                    case NOT_STANDARD_ANSWER:
+                        break;
+                    case VOICE_ORDER:
+                        break;
+                }
+            }
+        }, new Ise.Step5Listener() {
+            @Override
+            public void onAfterStep5() {
+                // order 为true时 是人→机器→人的顺序
+                if (order) {
+                    order = false;
+                    speak(dialogue_resource[dr], dialogue_resource_path[drp]);
+                }else{
+                    dr += 2;
+                    drp += 1;
+                    if (dr >= dialogue_resource.length || drp >= dialogue_resource_path.length) {
+                        dr = 0;
+                        drp = 0;
+                        return;
+                    }
+                    speak(dialogue_resource[dr], dialogue_resource_path[drp]);
+                }
+            }
+        }, new Ise.RecordBeginListener() {
+            @Override
+            public void onRecordBegin() {
+                // 听的表情
+            }
+        }, new Ise.RecordOverListener() {
+            @Override
+            public void onRecordOver() {
+                // 结束听的表情0
+            }
+        });
+    }
+
     /**
      * 设置GIF
+     *
      * @param bitmaps   用于制作GIF的bitmap集合
      * @param delayTime GIF第一帧到尾帧的总时长
      * @param resource  资源数组
      * @param gif       用于显示GIF的ImageView
      */
     private void setGif(List<Bitmap> bitmaps, int delayTime, int[] resource, ImageView gif) {
-        for(int i=0;i<resource.length;i++){
-            Bitmap bitmap = decodeResource(getResources(),resource[i]);
+        for (int i = 0; i < resource.length; i++) {
+            Bitmap bitmap = decodeResource(getResources(), resource[i]);
             bitmaps.add(bitmap);
         }
         fa = FrameAnimation.createFrameAnimation(new FrameAnimation.OnGifPlayOverListener() {
@@ -209,14 +263,15 @@ public class MainActivity extends BaseActivity {
             public void OnGifPlayOver() {
             }
         });
-        fa.composeGif(this,bitmaps,delayTime,isFinishing(),gif);
+        fa.composeGif(this, bitmaps, delayTime, isFinishing(), gif);
     }
 
     /**
      * 设置场景
-     * @param scene_id  场景对应的资源ID
+     *
+     * @param scene_id 场景对应的资源ID
      */
-    private void setScene(int scene_id){
+    private void setScene(int scene_id) {
         scene.setBackgroundResource(scene_id);
     }
 
@@ -224,6 +279,7 @@ public class MainActivity extends BaseActivity {
      * 因为目前我们只有一套资源文件，全都放在hdpi下面，这样如果是遇到高密度手机， 系统会按照
      * scale = (float) targetDensity / density 把图片放到几倍，这样会使得在高密度手机上经常会发生OOM。
      * 这个方法用来解决在如果密度大于hdpi（240）的手机上，decode资源文件被放大scale，内容浪费的问题。
+     *
      * @param resources
      * @param id
      * @return
@@ -238,7 +294,7 @@ public class MainActivity extends BaseActivity {
         if (densityDpi > DisplayMetrics.DENSITY_HIGH) {
             opts.inTargetDensity = value.density;
             bitmap = BitmapFactory.decodeResource(resources, id, opts);
-        }else{
+        } else {
             bitmap = BitmapFactory.decodeResource(resources, id);
         }
         return bitmap;

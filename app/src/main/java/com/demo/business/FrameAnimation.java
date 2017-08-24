@@ -111,6 +111,7 @@ public class FrameAnimation {
                             GlideUtils.with(ctx, outPath)
                                     // 播放次数 -1为forever
                                     .loopCount(-1)
+                                    .size(600, 600)
                                     .into(image);
                         }
                     }

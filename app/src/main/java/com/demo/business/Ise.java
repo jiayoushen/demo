@@ -33,7 +33,7 @@ import static com.demo.base.Constants.VOICE_ORDER;
 
 public class Ise {
     private final static String PREFER_NAME = "ise_settings";
-    private String save_path=Environment.getExternalStorageDirectory().getAbsolutePath() + "/msc/ise.wav";
+    private String save_path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/msc/ise.wav";
     private static Ise d = null;
 
     private SpeechEvaluator mIse;
@@ -48,26 +48,36 @@ public class Ise {
     private String mLastResult;
 
     private FSMListener fsmListener;
+
     // FSM回调
     public interface FSMListener {
         void onFiniteStateMachine(int result_state);
     }
 
     private RecordBeginListener recordBeginListener;
+
     // 开始录音的回调
     public interface RecordBeginListener {
         void onRecordBegin();
     }
 
     private RecordOverListener recordOverListener;
+
     // 结束录音的回调
     public interface RecordOverListener {
         void onRecordOver();
     }
 
+    private Step5Listener step5Listener;
+
+    // 第5步结束的回调
+    public interface Step5Listener {
+        void onAfterStep5();
+    }
+
     public static Ise createIse(Context var0) {
-        synchronized(Ise.class) {
-            if(d == null) {
+        synchronized (Ise.class) {
+            if (d == null) {
                 d = new Ise(var0);
             }
         }
@@ -83,13 +93,14 @@ public class Ise {
         mToast = Toast.makeText(ctx, "", Toast.LENGTH_LONG);
     }
 
-    public void evaluation(String text,FSMListener fsmListener){//,RecordBeginListener recordBeginListener,RecordOverListener recordOverListener) {
-        if( null == mIse ){
+    public void evaluation(String text, FSMListener fsmListener, Step5Listener step5Listener, RecordBeginListener recordBeginListener, RecordOverListener recordOverListener) {
+        if (null == mIse) {
             // 创建单例失败，与 21001 错误为同样原因，参考 http://bbs.xfyun.cn/forum.php?mod=viewthread&tid=9688
-            this.showTip( "创建对象失败，请确认 libmsc.so 放置正确，且有调用 createUtility 进行初始化" );
+            this.showTip("创建对象失败，请确认 libmsc.so 放置正确，且有调用 createUtility 进行初始化");
             return;
         }
         this.fsmListener = fsmListener;
+        this.step5Listener = step5Listener;
         this.recordBeginListener = recordBeginListener;
         this.recordOverListener = recordOverListener;
         //       String evaText = mEvaTextEditText.getText().toString();
@@ -152,8 +163,8 @@ public class Ise {
                 showTip("error:" + error.getErrorCode() + "," + error.getErrorDescription());
                 L.i("error:" + error.getErrorCode() + "," + error.getErrorDescription());
                 if (error.getErrorCode() == 11401) {
-//                    finite_state_machine(NO_ANSWER);
-                    if(fsmListener!=null)
+                    //                    finite_state_machine(NO_ANSWER);
+                    if (fsmListener != null)
                         fsmListener.onFiniteStateMachine(NO_ANSWER);
                 }
             } else {
@@ -171,13 +182,19 @@ public class Ise {
         public void onEndOfSpeech() {
             // 此回调表示：检测到了语音的尾端点，已经进入识别过程，不再接受语音输入
             L.d("evaluator stoped");
+            if (recordOverListener != null) {
+                recordOverListener.onRecordOver();
+            }
         }
 
         @Override
         public void onVolumeChanged(int volume, byte[] data) {
             showTip("当前音量：" + volume);
-//            L.d("返回音频数据：" + data.length);
-            // 音量
+            //            L.d("返回音频数据：" + data.length);
+            // 当音量大于5的时候，默认为用户说话了
+            if (recordBeginListener != null) {
+                recordBeginListener.onRecordBegin();
+            }
         }
 
         @Override
@@ -204,12 +221,12 @@ public class Ise {
                 L.i(result.toString());
                 // 根据要求解析result结果
                 int result_state = result2Int(result.toString());
-//                finite_state_machine(result_state);
-                if(fsmListener!=null)
+                //                finite_state_machine(result_state);
+                if (fsmListener != null)
                     fsmListener.onFiniteStateMachine(result_state);
                 // 判断在什么情形下才需要保存
-//                if(result_state!=LOW_SCORE||LOW_SCORE!=NOT_STANDARD_ANSWER)
-                    save_or_abandon();
+                //                if(result_state!=LOW_SCORE||LOW_SCORE!=NOT_STANDARD_ANSWER)
+                save_or_abandon();
             } else {
                 showTip("解析结果为空");
             }
@@ -218,18 +235,19 @@ public class Ise {
 
     /**
      * 将结果解析成状态值
+     *
      * @return 状态值
      */
     private int result2Int(String result) {
-//        if(result.contains("检测到乱读"))
-//            return NOT_STANDARD_ANSWER;
-//        else
-            if(result.contains("总分：")){
+        //        if(result.contains("检测到乱读"))
+        //            return NOT_STANDARD_ANSWER;
+        //        else
+        if (result.contains("总分：")) {
             int index = result.indexOf("总分：");
-            String substring = result.substring(index+3, index+6);
-            L.i("substring = "+substring);
+            String substring = result.substring(index + 3, index + 6);
+            L.i("substring = " + substring);
             float score = Float.parseFloat(substring);
-            if(score<3.5){
+            if (score < 3.5) {
                 return LOW_SCORE;
             }
         }
@@ -238,7 +256,8 @@ public class Ise {
 
     /**
      * 解析状态值
-     * @param result_state  状态值
+     *
+     * @param result_state 状态值
      */
     private void finite_state_machine(int result_state) {
         switch (result_state) {
@@ -286,6 +305,8 @@ public class Ise {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         renameToNewFile("");
+                        if (step5Listener != null)
+                            step5Listener.onAfterStep5();
                     }
                 });
         normalDialog.setNegativeButton("放弃",
@@ -293,6 +314,8 @@ public class Ise {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         delFile(save_path);
+                        if (step5Listener != null)
+                            step5Listener.onAfterStep5();
                     }
                 });
         // 显示
@@ -301,25 +324,26 @@ public class Ise {
 
     /**
      * 确认保存的话，保存的名字？
+     *
      * @param dest
      * @return
      */
-    private boolean renameToNewFile(String dest)
-    {
+    private boolean renameToNewFile(String dest) {
         File srcDir = new File(save_path);  //就文件夹路径
         boolean isOk = srcDir.renameTo(new File(dest));  //dest新文件夹路径，通过renameto修改
-        L.d("renameToNewFile is OK ? :" +isOk);
+        L.d("renameToNewFile is OK ? :" + isOk);
         return isOk;
     }
 
     /**
      * 删除文件
+     *
      * @param root
      */
     //删除文件
-    public static void delFile(String root){
+    public static void delFile(String root) {
         File file = new File(root);
-        if(file.isFile()){
+        if (file.isFile()) {
             file.delete();
         }
         file.exists();
