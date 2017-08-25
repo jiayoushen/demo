@@ -9,11 +9,14 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.support.annotation.Nullable;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
 import com.demo.base.BaseActivity;
@@ -44,6 +47,10 @@ public class MainActivity extends BaseActivity {
     RelativeLayout scene;
     @BindView(R.id.iv_gif)
     ImageView gif;
+    @BindView(R.id.r_content)
+    TextView r_content;
+    @BindView(R.id.l_content)
+    TextView l_content;
     @BindView(R.id.bt_start)
     Button start;
 
@@ -116,19 +123,20 @@ public class MainActivity extends BaseActivity {
     public void OnClick() {
         setScene(R.mipmap.scene_check_in);
 
-        //        for (dr=0; dr<dialogue_resource.length;) {
-        //            speak("/sdcard/msc/tts.wav",dialogue_resource[i]);
+        // for (dr=0; dr<dialogue_resource.length;) {
+        // speak("/sdcard/msc/tts.wav",dialogue_resource[i]);
         if (dr == 0 && drp == 0) {
-            oSpeak(true,dialogue_resource[dr]);
+            oSpeak(true, dialogue_resource[dr]);
         }
-        //        }
+        // }
     }
 
     /**
      * 播放对话文件
      * 人→机器→人
+     *
      * @param o1
-     * @param speak      第一个人
+     * @param speak 用户读的文本
      */
     private void oSpeak(Boolean o1, String speak) {
         /**
@@ -141,13 +149,14 @@ public class MainActivity extends BaseActivity {
             record_eval(speak);
             Glide.with(MainActivity.this).load(resource[0]).asBitmap().override(600, 600).into(gif);
         }
-//        speak(dialogue_resource[dr], dialogue_resource_path[drp]);
+        //        speak(dialogue_resource[dr], dialogue_resource_path[drp]);
     }
 
     /**
      * 播放对话文件
      * 机器→人→机器→人
-     * @param speak      第一个人
+     *
+     * @param speak      用户读的文本
      * @param speak_path 对话的路径
      */
     private void speak(final String speak, String speak_path) {
@@ -159,7 +168,7 @@ public class MainActivity extends BaseActivity {
             }
             mPlayer = new MediaPlayer();
             mPlayer.reset();
-            L.i("speak = " + speak_path);
+            L.i("speak = " + speak + ",speak_path = " + speak_path);
             mPlayer.setDataSource(speak_path);
             //            mPlayer.prepareAsync();
             mPlayer.prepare();
@@ -169,6 +178,7 @@ public class MainActivity extends BaseActivity {
                     mp.start();
 
                     // 对话资源开始的时候显示动画
+                    setContent(r_content, speak);
                     List<Bitmap> bitmaps = new ArrayList<>();
                     int delayTime = 1000;
                     setGif(bitmaps, delayTime, resource, gif);
@@ -185,8 +195,7 @@ public class MainActivity extends BaseActivity {
 
                     Message msg = Message.obtain();
                     msg.what = TTS_WHAT;
-                    msg.obj = speak;
-                    L.i("onCompletion = " + speak);
+                    msg.obj = dialogue_resource[dr+1];
                     mHandler.sendMessageDelayed(msg, 100);
                 }
             });
@@ -195,10 +204,22 @@ public class MainActivity extends BaseActivity {
         }
     }
 
+    private void setContent(@Nullable TextView content, @Nullable String text) {
+        r_content.setVisibility(View.GONE);
+        l_content.setVisibility(View.GONE);
+        if (content != null) {
+            if (content.getVisibility() == View.GONE) {
+                content.setVisibility(View.VISIBLE);
+            }
+            content.setText(text);
+        }
+    }
+
     private void record_eval(String text) {
         L.i("record_eval = " + text);
         ise = Ise.createIse(this);
         //        String text = "hellow world!";
+        setContent(l_content, text);
         ise.evaluation(text, new Ise.FSMListener() {
             @Override
             public void onFiniteStateMachine(int result_state) {
@@ -213,6 +234,7 @@ public class MainActivity extends BaseActivity {
                     case VOICE_ORDER:
                         break;
                 }
+                setContent(null,null);
             }
         }, new Ise.Step5Listener() {
             @Override
@@ -221,7 +243,7 @@ public class MainActivity extends BaseActivity {
                 if (order) {
                     order = false;
                     speak(dialogue_resource[dr], dialogue_resource_path[drp]);
-                }else{
+                } else {
                     dr += 2;
                     drp += 1;
                     if (dr >= dialogue_resource.length || drp >= dialogue_resource_path.length) {

@@ -141,7 +141,7 @@ public class Ise {
     private EvaluatorListener mEvaluatorListener = new EvaluatorListener() {
         @Override
         public void onResult(EvaluatorResult result, boolean isLast) {
-            L.d("evaluator result :" + isLast);
+//            L.d("evaluator result :" + isLast);
 
             if (isLast) {
                 StringBuilder builder = new StringBuilder();
@@ -161,27 +161,27 @@ public class Ise {
         public void onError(SpeechError error) {
             if (error != null) {
                 showTip("error:" + error.getErrorCode() + "," + error.getErrorDescription());
-                L.i("error:" + error.getErrorCode() + "," + error.getErrorDescription());
+//                L.i("error:" + error.getErrorCode() + "," + error.getErrorDescription());
                 if (error.getErrorCode() == 11401) {
                     //                    finite_state_machine(NO_ANSWER);
                     if (fsmListener != null)
                         fsmListener.onFiniteStateMachine(NO_ANSWER);
                 }
             } else {
-                L.d("evaluator over");
+//                L.d("evaluator over");
             }
         }
 
         @Override
         public void onBeginOfSpeech() {
             // 此回调表示：sdk内部录音机已经准备好了，用户可以开始语音输入
-            L.d("evaluator begin");
+//            L.d("evaluator begin");
         }
 
         @Override
         public void onEndOfSpeech() {
             // 此回调表示：检测到了语音的尾端点，已经进入识别过程，不再接受语音输入
-            L.d("evaluator stoped");
+//            L.d("evaluator stoped");
             if (recordOverListener != null) {
                 recordOverListener.onRecordOver();
             }
@@ -218,7 +218,7 @@ public class Ise {
 
             if (null != result) {
                 //                mResultEditText.setText(result.toString());
-                L.i(result.toString());
+//                L.i(result.toString());
                 // 根据要求解析result结果
                 int result_state = result2Int(result.toString());
                 //                finite_state_machine(result_state);
@@ -305,6 +305,9 @@ public class Ise {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         renameToNewFile("");
+
+                        dialog.dismiss();
+
                         if (step5Listener != null)
                             step5Listener.onAfterStep5();
                     }
@@ -314,6 +317,10 @@ public class Ise {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         delFile(save_path);
+                        // android.view.WindowLeaked: Activity  has leaked window com.android.internal.policy.impl.PhoneWindow$DecorView{b3e23088 V.E..... R.....ID 0,0-480,243} that was originally added here
+                        // 此处不dismiss的话就会产生上面的问题
+                        dialog.dismiss();
+
                         if (step5Listener != null)
                             step5Listener.onAfterStep5();
                     }

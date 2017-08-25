@@ -101,8 +101,8 @@ public class FrameAnimation {
      * @param image          用于加载gif的image对象
      */
     public void composeGif(final Context ctx, List<Bitmap> bitmaps, int delayTime, final boolean actIsFinishing, final ImageView image) {
-        String absolutePath = new File(Environment.getExternalStorageDirectory()
-                , System.currentTimeMillis() + ".gif").getAbsolutePath();
+        String absolutePath = new File(Environment.getExternalStorageDirectory(),"demo.gif").getAbsolutePath();
+//                , System.currentTimeMillis() + ".gif").getAbsolutePath();
         new GifMaker((delayTime / bitmaps.size()), mExecutorService)
                 .makeGifInThread(bitmaps, absolutePath, new GifMaker.OnGifMakerListener() {
                     @Override
