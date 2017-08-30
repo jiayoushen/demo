@@ -17,6 +17,14 @@ public interface Constants {
     int FRAMEANIMATION_WHAT = 100;
     // TTS的handler的what
     int TTS_WHAT = 101;
+    // ISE的handler的what
+    int ISE_WHAT = 102;
+    // ISE的handler的Delayed
+    int ISE_DELAYTIME = 1000;
+
+    // 总分界面播放与结束语音的标识
+    int EVALTOTAL_VOICE_START = 103;
+    int EVALTOTAL_VOICE_STOP = 104;
 
     /**
      * 动态权限相关

@@ -7,4 +7,9 @@
     <string name="help">帮助</string>
     <string name="string_help_text">当前应用缺少必要权限。\n\n请点击\"设置\"-\"权限\"-打开所需权限。\n\n最后点击两次后退按钮，即可返回。</string>
     <string name="quit">退出</string>
+
+    <string name="eval_total">总分:%1$.2f</string>
+    <string name="eval_score">评分:%1$.2f</string>
+    <string name="newresult_list_item_username_self">我</string>
+    <string name="newresult_list_item_username_robat">机器</string>
 </resources>

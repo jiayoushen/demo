@@ -7,9 +7,11 @@ import android.graphics.BitmapFactory;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.SystemClock;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
@@ -24,6 +26,7 @@ import com.bumptech.glide.Glide;
 import com.demo.base.BaseActivity;
 import com.demo.business.FrameAnimation;
 import com.demo.business.Ise;
+import com.demo.entity.Grade;
 import com.demo.utils.L;
 import com.demo.utils.permissions.PermissionsActivity;
 import com.demo.utils.permissions.PermissionsChecker;
@@ -64,7 +67,7 @@ public class MainActivity extends BaseActivity {
 
     private int[] resource = {R.mipmap.role_travel1_1, R.mipmap.role_travel1_3};
     // 模拟5句对话 机器→人→机器→人
-    private String[] dialogue_resource = {"aaa", "bbb", "ccc", "ddd", "eee"};
+    private String[] dialogue_resource = {"aaa", "bbb", "ccc", "ddd", "eee", "fff"};
     //    private String[] dialogue_resource_path = {"/sdcard/msc/tts1.wav", "/sdcard/msc/tts3.wav", "/sdcard/msc/tts5.wav"};
     private int[] dialogue_resource_path = {R.raw.tts1, R.raw.tts3, R.raw.tts5};
     private int dr = 0;
@@ -72,12 +75,19 @@ public class MainActivity extends BaseActivity {
     // 播放顺序
     private Boolean order;
 
+    private EvalTotalDialog dialog;
+    private List<Grade> grades;
+    // 录音储存位置
+    private String save_path;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
         mPermissionsChecker = new PermissionsChecker(this);
+
+        grades = new ArrayList<Grade>();
 
         mHandler = new Handler(Looper.getMainLooper()) {
             @Override
@@ -173,7 +183,9 @@ public class MainActivity extends BaseActivity {
             mPlayer = new MediaPlayer();
             mPlayer.reset();
             L.i("speak = " + speak + ",speak_path = " + speak_path);
-            Uri mUri = Uri.parse("android.resource://" + getPackageName() + "/" + speak_path);
+            final String uri = "android.resource://" + getPackageName() + "/" + speak_path;
+
+            Uri mUri = Uri.parse(uri);
             mPlayer.setDataSource(MainActivity.this, mUri);
             //            mPlayer.prepareAsync();
             mPlayer.prepare();
@@ -181,6 +193,9 @@ public class MainActivity extends BaseActivity {
                 @Override
                 public void onPrepared(MediaPlayer mp) {
                     mp.start();
+
+                    int time = (int) (mp.getDuration() / 1000);
+                    grades.add(new Grade(2,speak,uri,0.0f,time));
 
                     // 对话资源开始的时候显示动画
                     setContent(r_content, speak);
@@ -229,13 +244,22 @@ public class MainActivity extends BaseActivity {
             dr = 0;
             drp = 0;
             setContent(null, text);
+
+            if (dialog == null) {
+                dialog = new EvalTotalDialog(this);
+                dialog.setList((ArrayList)grades);
+            }
+            if (!dialog.isShowing())
+                dialog.show();
+            grades.clear();
             return;
         }
         setContent(l_content, text);
         ise = Ise.createIse(this);
-        ise.evaluation(text, new Ise.FSMListener() {
+        save_path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/msc/"+SystemClock.currentThreadTimeMillis()+".wav";
+        ise.evaluation(save_path,text, new Ise.FSMListener() {
             @Override
-            public void onFiniteStateMachine(int result_state) {
+            public void onFiniteStateMachine(int result_state,float score,int time) {
                 L.i("result_state = " + result_state);
                 switch (result_state) {
                     case NO_ANSWER:
@@ -247,6 +271,7 @@ public class MainActivity extends BaseActivity {
                     case VOICE_ORDER:
                         break;
                 }
+                grades.add(new Grade(1,null,save_path,score,time));
                 setContent(null, null);
             }
         }, new Ise.Step5Listener() {
@@ -262,6 +287,14 @@ public class MainActivity extends BaseActivity {
                 if (dr >= dialogue_resource.length || drp >= dialogue_resource_path.length) {
                     dr = 0;
                     drp = 0;
+
+                    if (dialog == null) {
+                        dialog = new EvalTotalDialog(MainActivity.this);
+                        dialog.setList((ArrayList)grades);
+                    }
+                    if (!dialog.isShowing())
+                        dialog.show();
+                    grades.clear();
                     return;
                 }
                 speak(dialogue_resource[dr], dialogue_resource_path[drp]);
