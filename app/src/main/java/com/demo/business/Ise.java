@@ -8,7 +8,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.os.SystemClock;
 import android.text.TextUtils;
 import android.widget.Toast;
 
@@ -63,7 +62,7 @@ public class Ise {
 
     // FSM回调
     public interface FSMListener {
-        void onFiniteStateMachine(int result_state,float score,int time);
+        void onFiniteStateMachine(int result_state, float score, int time);
     }
 
     private RecordBeginListener recordBeginListener;
@@ -78,6 +77,13 @@ public class Ise {
     // 结束录音的回调
     public interface RecordOverListener {
         void onRecordOver();
+    }
+
+    private TimeChangedListener timeChangedListener;
+
+    // 时间改变的回调
+    public interface TimeChangedListener {
+        void onTimeChanged(int time);
     }
 
     private Step5Listener step5Listener;
@@ -108,14 +114,15 @@ public class Ise {
             @Override
             public void handleMessage(final Message msg) {
                 if (msg.what == ISE_WHAT && step5Listener != null) {
-                        step5Listener.onAfterStep5();
+                    step5Listener.onAfterStep5();
                 }
                 super.handleMessage(msg);
             }
         };
     }
 
-    public void evaluation(String save_path,String text, FSMListener fsmListener, Step5Listener step5Listener, RecordBeginListener recordBeginListener, RecordOverListener recordOverListener) {
+    public void evaluation(String save_path, String text, int timeout, FSMListener fsmListener, Step5Listener step5Listener, RecordBeginListener recordBeginListener, RecordOverListener recordOverListener
+    ,TimeChangedListener timeChangedListener) {
         if (null == mIse) {
             // 创建单例失败，与 21001 错误为同样原因，参考 http://bbs.xfyun.cn/forum.php?mod=viewthread&tid=9688
             this.showTip("创建对象失败，请确认 libmsc.so 放置正确，且有调用 createUtility 进行初始化");
@@ -126,12 +133,13 @@ public class Ise {
         this.step5Listener = step5Listener;
         this.recordBeginListener = recordBeginListener;
         this.recordOverListener = recordOverListener;
+        this.timeChangedListener = timeChangedListener;
         //       String evaText = mEvaTextEditText.getText().toString();
-        setParams();
+        setParams(timeout);
         mIse.startEvaluating(text, null, mEvaluatorListener);
     }
 
-    private void setParams() {
+    private void setParams(int timeout) {
         SharedPreferences pref = ctx.getSharedPreferences(PREFER_NAME, MODE_PRIVATE);
         // 设置评测语言
         language = pref.getString(SpeechConstant.LANGUAGE, "en_us");
@@ -144,7 +152,8 @@ public class Ise {
         // 设置语音后端点:后端点静音检测时间，即用户停止说话多长时间内即认为不再输入， 自动停止录音
         String vad_eos = pref.getString(SpeechConstant.VAD_EOS, "1800");
         // 语音输入超时时间，即用户最多可以连续说多长时间；
-        String speech_timeout = pref.getString(SpeechConstant.KEY_SPEECH_TIMEOUT, "-1");
+        //        String speech_timeout = pref.getString(SpeechConstant.KEY_SPEECH_TIMEOUT, "-1");
+        String speech_timeout = pref.getString(SpeechConstant.KEY_SPEECH_TIMEOUT, String.valueOf(timeout));
 
         mIse.setParameter(SpeechConstant.LANGUAGE, language);
         mIse.setParameter(SpeechConstant.ISE_CATEGORY, category);
@@ -164,7 +173,7 @@ public class Ise {
     private EvaluatorListener mEvaluatorListener = new EvaluatorListener() {
         @Override
         public void onResult(EvaluatorResult result, boolean isLast) {
-//            L.d("evaluator result :" + isLast);
+            //            L.d("evaluator result :" + isLast);
 
             if (isLast) {
                 StringBuilder builder = new StringBuilder();
@@ -184,29 +193,32 @@ public class Ise {
         public void onError(SpeechError error) {
             if (error != null) {
                 showTip("error:" + error.getErrorCode() + "," + error.getErrorDescription());
-//                L.i("error:" + error.getErrorCode() + "," + error.getErrorDescription());
+                //                L.i("error:" + error.getErrorCode() + "," + error.getErrorDescription());
                 if (error.getErrorCode() == 11401) {
                     //                    finite_state_machine(NO_ANSWER);
                     if (fsmListener != null)
-                        fsmListener.onFiniteStateMachine(NO_ANSWER,0.0f,0);
+                        fsmListener.onFiniteStateMachine(NO_ANSWER, 0.0f, 0);
                 }
             } else {
-//                L.d("evaluator over");
+                //                L.d("evaluator over");
             }
         }
 
         @Override
         public void onBeginOfSpeech() {
             // 此回调表示：sdk内部录音机已经准备好了，用户可以开始语音输入
-//            L.d("evaluator begin");
-            startVoiceT = SystemClock.currentThreadTimeMillis();
+            //            L.d("evaluator begin");
+            startVoiceT = System.currentTimeMillis();;
+            if (recordBeginListener != null) {
+                recordBeginListener.onRecordBegin();
+            }
         }
 
         @Override
         public void onEndOfSpeech() {
             // 此回调表示：检测到了语音的尾端点，已经进入识别过程，不再接受语音输入
-//            L.d("evaluator stoped");
-            endVoiceT = SystemClock.currentThreadTimeMillis();
+            //            L.d("evaluator stoped");
+            endVoiceT = System.currentTimeMillis();
             if (recordOverListener != null) {
                 recordOverListener.onRecordOver();
             }
@@ -217,8 +229,8 @@ public class Ise {
             showTip("当前音量：" + volume);
             //            L.d("返回音频数据：" + data.length);
             // 当音量大于5的时候，默认为用户说话了
-            if (recordBeginListener != null) {
-                recordBeginListener.onRecordBegin();
+            if (timeChangedListener != null) {
+                timeChangedListener.onTimeChanged((int)(System.currentTimeMillis()-startVoiceT));
             }
         }
 
@@ -243,19 +255,19 @@ public class Ise {
 
             if (null != result) {
                 //                mResultEditText.setText(result.toString());
-//                L.i(result.toString());
+                //                L.i(result.toString());
                 // 根据要求解析result结果
                 int result_state = result2Int(result.toString());
                 //                finite_state_machine(result_state);
                 int time = (int) ((endVoiceT - startVoiceT) / 1000);
-                if(time<1){
+                if (time < 1) {
                     time = 1;
                 }
                 if (fsmListener != null)
-                    fsmListener.onFiniteStateMachine(result_state,score,time);
+                    fsmListener.onFiniteStateMachine(result_state, score, time);
                 // 判断在什么情形下才需要保存
                 //                if(result_state!=LOW_SCORE||LOW_SCORE!=NOT_STANDARD_ANSWER)
-//                save_or_abandon();
+                //                save_or_abandon();
 
                 // 录音完成之后在停顿ISE_DELAYTIME ms,在继续下一步
                 mHandler.sendEmptyMessageDelayed(ISE_WHAT, ISE_DELAYTIME);
@@ -279,10 +291,10 @@ public class Ise {
             int index = result.indexOf("总分：");
             String substring = result.substring(index + 3, index + 6);
             L.i("substring = " + substring);
-//            float score = Float.parseFloat(substring);
+            //            float score = Float.parseFloat(substring);
             try {
                 score = Float.parseFloat(substring);
-            }catch (Exception e){
+            } catch (Exception e) {
                 L.i(e.toString());
             }
             if (score < 3.5) {

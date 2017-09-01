@@ -18,6 +18,8 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
@@ -26,10 +28,12 @@ import com.bumptech.glide.Glide;
 import com.demo.base.BaseActivity;
 import com.demo.business.FrameAnimation;
 import com.demo.business.Ise;
+import com.demo.entity.Dialogue;
 import com.demo.entity.Grade;
 import com.demo.utils.L;
 import com.demo.utils.permissions.PermissionsActivity;
 import com.demo.utils.permissions.PermissionsChecker;
+import com.github.lzyzsd.circleprogress.DonutProgress;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,27 +62,50 @@ public class MainActivity extends BaseActivity {
     TextView l_content;
     @BindView(R.id.bt_start)
     Button start;
+    @BindView(R.id.cb_sub_title)
+    CheckBox subtitle;
+    @BindView(R.id.donut_progress)
+    DonutProgress donutProgress;
 
-    private PermissionsChecker mPermissionsChecker; // 权限检测器
+    // 权限检测器
+    private PermissionsChecker mPermissionsChecker;
     private FrameAnimation fa;
     private Ise ise;
+    // 用于播放录音文件
     private MediaPlayer mPlayer;
-    private Handler mHandler; // 回调回主线程使用
+    // 回调回主线程使用
+    private Handler mHandler;
 
     private int[] resource = {R.mipmap.role_travel1_1, R.mipmap.role_travel1_3};
     // 模拟5句对话 机器→人→机器→人
     private String[] dialogue_resource = {"aaa", "bbb", "ccc", "ddd", "eee", "fff"};
-    //    private String[] dialogue_resource_path = {"/sdcard/msc/tts1.wav", "/sdcard/msc/tts3.wav", "/sdcard/msc/tts5.wav"};
     private int[] dialogue_resource_path = {R.raw.tts1, R.raw.tts3, R.raw.tts5};
+    // 循环次数的标志
     private int dr = 0;
     private int drp = 0;
-    // 播放顺序
-    private Boolean order;
-
+    /**
+     * 播放顺序
+     * true：人→机器→人
+     * false：机器→人→机器
+     */
+    private Boolean order = false;
+    // 总分界面
     private EvalTotalDialog dialog;
+    // 存储总分界面所需的对象
     private List<Grade> grades;
     // 录音储存位置
     private String save_path;
+    /**
+     * 字幕显示状态（Subtitle display status）
+     */
+    private boolean sds;
+    /**
+     * 对话的状态（State of dialogue）
+     **/
+    private boolean sod;
+
+    private List<Dialogue> dialogues;
+    private Dialogue dialogue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,6 +125,33 @@ public class MainActivity extends BaseActivity {
                 super.handleMessage(msg);
             }
         };
+
+        subtitle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                // TODO Auto-generated method stub
+                showSubtitle(isChecked);
+                sds = isChecked;
+            }
+        });
+
+        setDate();
+    }
+
+    private void setDate() {
+        dialogues = new ArrayList<Dialogue>();
+        int j = 0;
+        for (int i = 0; i < dialogue_resource.length; i++) {
+            if (i % 2 == 1) {
+                // 人
+                dialogues.add(new Dialogue(1, dialogue_resource[i], null, 3000));
+            } else {
+                // 机器
+                dialogues.add(new Dialogue(2, dialogue_resource[i], ("android.resource://" + getPackageName() + "/" + dialogue_resource_path[j]), 0));
+                j++;
+            }
+        }
+        L.i("setDate() = " + dialogues.toString());
     }
 
     @Override
@@ -132,17 +186,17 @@ public class MainActivity extends BaseActivity {
         super.onDestroy();
     }
 
-    @OnClick(R.id.bt_start)
-    public void OnClick() {
+    @OnClick({R.id.bt_start})
+    public void OnClick(View view) {
         setScene(R.mipmap.scene_check_in);
 
-        // for (dr=0; dr<dialogue_resource.length;) {
-        // speak("/sdcard/msc/tts.wav",dialogue_resource[i]);
-        if (dr == 0 && drp == 0) {
-            //            oSpeak(true, dialogue_resource[dr]);
-            speak(dialogue_resource[dr], dialogue_resource_path[drp]);
+        //        if (dr == 0 && drp == 0) {
+        //            oSpeak(true, dialogue_resource[dr]);
+        if (sod == false) {
+            sod = true;
+            //            speak(dialogue_resource[dr], dialogue_resource_path[drp]);
+            oSpeak(false, dialogue_resource[dr]);
         }
-        // }
     }
 
     /**
@@ -162,16 +216,18 @@ public class MainActivity extends BaseActivity {
             order = o1;
             record_eval(speak);
             Glide.with(MainActivity.this).load(resource[0]).asBitmap().override(600, 600).into(gif);
+        } else {
+            order = o1;
+            speak(dialogue_resource[dr], dialogue_resource_path[drp]);
         }
-        //        speak(dialogue_resource[dr], dialogue_resource_path[drp]);
     }
 
     /**
      * 播放对话文件
      * 机器→人→机器→人
      *
-     * @param speak      用户读的文本
-     * @param speak_path 对话的路径
+     * @param speak 用户读的文本
+     * @param speak_path   对话的路径
      */
     private void speak(final String speak, int speak_path) {
         try {
@@ -182,12 +238,9 @@ public class MainActivity extends BaseActivity {
             }
             mPlayer = new MediaPlayer();
             mPlayer.reset();
-            L.i("speak = " + speak + ",speak_path = " + speak_path);
             final String uri = "android.resource://" + getPackageName() + "/" + speak_path;
-
             Uri mUri = Uri.parse(uri);
             mPlayer.setDataSource(MainActivity.this, mUri);
-            //            mPlayer.prepareAsync();
             mPlayer.prepare();
             mPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
                 @Override
@@ -195,7 +248,7 @@ public class MainActivity extends BaseActivity {
                     mp.start();
 
                     int time = (int) (mp.getDuration() / 1000);
-                    grades.add(new Grade(2,speak,uri,0.0f,time));
+                    grades.add(new Grade(2, speak, uri, 0.0f, time));
 
                     // 对话资源开始的时候显示动画
                     setContent(r_content, speak);
@@ -215,7 +268,7 @@ public class MainActivity extends BaseActivity {
 
                     Message msg = Message.obtain();
                     msg.what = TTS_WHAT;
-                    if((dr + 1)<dialogue_resource.length) {
+                    if ((dr + 1) < dialogue_resource.length) {
                         msg.obj = dialogue_resource[dr + 1];
                     }
                     mHandler.sendMessageDelayed(msg, 100);
@@ -226,40 +279,70 @@ public class MainActivity extends BaseActivity {
         }
     }
 
+    /**
+     * 显示或隐藏对话文本
+     *
+     * @param show
+     */
+    private void showSubtitle(boolean show) {
+        if (show) {
+            if (sod) {
+                if (mPlayer != null && mPlayer.isPlaying()) {
+                    r_content.setVisibility(View.VISIBLE);
+                } else {
+                    l_content.setVisibility(View.VISIBLE);
+                }
+            }
+        } else {
+            l_content.setVisibility(View.GONE);
+            r_content.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * 显示状态下对话文本的展示流程
+     *
+     * @param content
+     * @param text
+     */
     private void setContent(@Nullable TextView content, @Nullable String text) {
         r_content.setVisibility(View.GONE);
         l_content.setVisibility(View.GONE);
         if (content != null) {
-            if (content.getVisibility() == View.GONE) {
-                content.setVisibility(View.VISIBLE);
+            if (sds) {
+                if (content.getVisibility() == View.GONE) {
+                    content.setVisibility(View.VISIBLE);
+                }
             }
             content.setText(text);
         }
     }
 
+    /**
+     * 调用科大讯飞录音测评
+     *
+     * @param text
+     */
     private void record_eval(String text) {
         L.i("record_eval = " + text);
-        //        String text = "hellow world!";
-        if(TextUtils.isEmpty(text)){
+        // 对话为单数的时候
+        if (TextUtils.isEmpty(text)) {
             dr = 0;
             drp = 0;
             setContent(null, text);
 
-            if (dialog == null) {
-                dialog = new EvalTotalDialog(this);
-                dialog.setList((ArrayList)grades);
-            }
-            if (!dialog.isShowing())
-                dialog.show();
-            grades.clear();
+            showEvalTotal();
+
+            sod = false;
             return;
         }
         setContent(l_content, text);
         ise = Ise.createIse(this);
-        save_path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/msc/"+SystemClock.currentThreadTimeMillis()+".wav";
-        ise.evaluation(save_path,text, new Ise.FSMListener() {
+        save_path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/msc/" + SystemClock.currentThreadTimeMillis() + ".wav";
+        final int timeout = 3000;
+        ise.evaluation(save_path, text, timeout, new Ise.FSMListener() {
             @Override
-            public void onFiniteStateMachine(int result_state,float score,int time) {
+            public void onFiniteStateMachine(int result_state, float score, int time) {
                 L.i("result_state = " + result_state);
                 switch (result_state) {
                     case NO_ANSWER:
@@ -271,46 +354,65 @@ public class MainActivity extends BaseActivity {
                     case VOICE_ORDER:
                         break;
                 }
-                grades.add(new Grade(1,null,save_path,score,time));
+                L.i("onFiniteStateMachine :" + time);
+                grades.add(new Grade(1, null, save_path, score, time));
                 setContent(null, null);
             }
         }, new Ise.Step5Listener() {
             @Override
             public void onAfterStep5() {
                 // order 为true时 是人→机器→人的顺序
-                //                if (order) {
-                //                    order = false;
-                //                    speak(dialogue_resource[dr], dialogue_resource_path[drp]);
-                //                } else {
-                dr += 2;
-                drp += 1;
-                if (dr >= dialogue_resource.length || drp >= dialogue_resource_path.length) {
-                    dr = 0;
-                    drp = 0;
+                if (order) {
+                    order = false;
+                    speak(dialogue_resource[dr], dialogue_resource_path[drp]);
+                } else {
+                    dr += 2;
+                    drp += 1;
+                    if (dr >= dialogue_resource.length || drp >= dialogue_resource_path.length) {
+                        dr = 0;
+                        drp = 0;
 
-                    if (dialog == null) {
-                        dialog = new EvalTotalDialog(MainActivity.this);
-                        dialog.setList((ArrayList)grades);
+                        showEvalTotal();
+
+                        sod = false;
+                        return;
                     }
-                    if (!dialog.isShowing())
-                        dialog.show();
-                    grades.clear();
-                    return;
+                    speak(dialogue_resource[dr], dialogue_resource_path[drp]);
                 }
-                speak(dialogue_resource[dr], dialogue_resource_path[drp]);
-                //                }
             }
         }, new Ise.RecordBeginListener() {
             @Override
             public void onRecordBegin() {
                 // 听的表情
+                donutProgress.setMax(timeout);
+                donutProgress.setVisibility(View.VISIBLE);
             }
         }, new Ise.RecordOverListener() {
             @Override
             public void onRecordOver() {
                 // 结束听的表情0
+                donutProgress.setVisibility(View.GONE);
+                donutProgress.setProgress(0);
+            }
+        }, new Ise.TimeChangedListener() {
+            @Override
+            public void onTimeChanged(int time) {
+                donutProgress.setProgress(time);
             }
         });
+    }
+
+    /**
+     * 打开总分界面的方法
+     */
+    private void showEvalTotal() {
+        if (dialog == null) {
+            dialog = new EvalTotalDialog(this);
+            dialog.setList((ArrayList) grades);
+        }
+        if (!dialog.isShowing())
+            dialog.show();
+        grades.clear();
     }
 
     /**

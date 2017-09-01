@@ -60,11 +60,6 @@ public class Grade {
         this.score = score;
     }
 
-    @Override
-    public String toString() {
-        return "[sort = " + sort + ";content_text = " + content_text + ";voice_path = " + voice_path + ",score = " + score + ",time = " + time + "]";
-    }
-
     public int getTime() {
         return time;
     }
@@ -79,5 +74,10 @@ public class Grade {
 
     public void setFlag(int flag) {
         this.flag = flag;
+    }
+
+    @Override
+    public String toString() {
+        return "[sort = " + sort + ";content_text = " + content_text + ";voice_path = " + voice_path + ",score = " + score + ",time = " + time + "]";
     }
 }
