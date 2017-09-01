@@ -15,12 +15,12 @@ public class Grade {
     private String voice_path;
     // 用户语音带评分
     private float score;
-    // 语音时长
+    // 语音时长(sec)
     private int time;
     // 语音播放状态
     private int flag;
 
-    public Grade(int sort, @Nullable String content_text, String voice_path, float score, int time) {
+    public Grade(int sort, @Nullable String content_text, @Nullable String voice_path, float score, int time) {
         this.sort = sort;
         this.content_text = content_text;
         this.voice_path = voice_path;

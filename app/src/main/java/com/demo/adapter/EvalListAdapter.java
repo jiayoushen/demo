@@ -16,6 +16,7 @@ import android.widget.TextView;
 
 import com.demo.R;
 import com.demo.entity.Grade;
+import com.demo.utils.L;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -146,6 +147,7 @@ public class EvalListAdapter extends BaseAdapter {
         try {
             if (mMediaPlayer.isPlaying()) {
                 mMediaPlayer.stop();
+                L.i("isPlaying() = "+playing_position +" - "+ position);
                 if (playing_position != position) {
                     grades.get(playing_position).setFlag(EVALTOTAL_VOICE_STOP);
                     if (chatcontentListener != null) {

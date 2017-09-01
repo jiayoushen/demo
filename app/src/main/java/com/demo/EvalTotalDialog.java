@@ -75,13 +75,12 @@ public class EvalTotalDialog extends Dialog {
     }
 
     private void updateView(int flag, int itemIndex) {
-        L.i("updateView : "+flag);
+        L.i("updateView : "+flag+" - "+itemIndex);
         //得到第一个可显示控件的位置，
         int visiblePosition = eval_list.getFirstVisiblePosition();
         switch (flag) {
             case EVALTOTAL_VOICE_START:
                 //只有当要更新的view在可见的位置时才更新，不可见时，跳过不更新
-                L.i("updateView : " + itemIndex + " - " + visiblePosition);
                 if (itemIndex - visiblePosition >= 0) {
                     //得到要更新的item的view
                     View view = eval_list.getChildAt(itemIndex - visiblePosition);
@@ -91,7 +90,7 @@ public class EvalTotalDialog extends Dialog {
                 break;
             case EVALTOTAL_VOICE_STOP:
                 //得到要更新的item的view
-                View view = eval_list.getChildAt(itemIndex);
+                View view = eval_list.getChildAt(itemIndex-visiblePosition);
                 //调用adapter更新界面
                 adapter.updateView2(view);
                 break;
