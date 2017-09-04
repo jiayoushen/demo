@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
@@ -17,16 +19,20 @@ import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Display;
+import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.ListView;
+import android.widget.PopupWindow;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
+import com.demo.adapter.DialogueTextAdapter;
 import com.demo.base.BaseActivity;
 import com.demo.business.FrameAnimation;
 import com.demo.business.Ise;
@@ -79,8 +85,10 @@ public class MainActivity extends BaseActivity {
 
     private int[] resource = {R.mipmap.role_travel1_1, R.mipmap.role_travel1_3};
     // 模拟5句对话 机器→人→机器→人
-    private String[] dialogue_resource = {"aaa", "bbb", "ccc", "ddd", "eee", "fff"};
-    private int[] dialogue_resource_path = {R.raw.tts1, R.raw.tts3, R.raw.tts5};
+    private String[] dialogue_resource = {"Is this where I check in for flight number 117?", "Yes,this is.Would you like to check in now?",
+            "Yes,of course.", "May I see you ticket and passport,please?", "Sure!Here they are."};
+    private int[] dialogue_resource_path = {R.raw.dialogue_2, R.raw.dialogue_4};
+    private int[] dialogue_resource_time = {5, 1,3};
     // 循环次数的标志
     private int dr = 0;
     /**
@@ -91,6 +99,8 @@ public class MainActivity extends BaseActivity {
     private Boolean order = false;
     // 总分界面
     private EvalTotalDialog dialog;
+    // 显示全段文本界面
+    private PopupWindow popup;
     // 存储总分界面所需的对象
     private List<Grade> grades;
     // 录音储存位置
@@ -103,8 +113,9 @@ public class MainActivity extends BaseActivity {
      * 对话的状态（State of dialogue）
      **/
     private boolean sod;
-
-//    private List<Dialogue> dialogues;
+    // 用于判断双击
+    private long[] mHits = new long[2];
+    private DialogueTextAdapter dtAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -137,18 +148,25 @@ public class MainActivity extends BaseActivity {
     }
 
     private void setDate() {
-//        dialogues = new ArrayList<Dialogue>();
         int j = 0;
+        int k = 0;
         for (int i = 0; i < dialogue_resource.length; i++) {
+//            if (i % 2 == 1) {
+//                // 人
+//                grades.add(new Grade(1, dialogue_resource[i], null, 0.0f, 3));
+//            } else {
+//                // 机器
+//                grades.add(new Grade(2, dialogue_resource[i], ("android.resource://" + getPackageName() + "/" + dialogue_resource_path[j]), 0.0f, 0));
+//                j++;
+//            }
             if (i % 2 == 1) {
-                // 人
-//                dialogues.add(new Dialogue(1, dialogue_resource[i], null, 3000));
-                grades.add(new Grade(1, dialogue_resource[i], null, 0.0f, 3));
-            } else {
                 // 机器
-//                dialogues.add(new Dialogue(2, dialogue_resource[i], ("android.resource://" + getPackageName() + "/" + dialogue_resource_path[j]), 0));
                 grades.add(new Grade(2, dialogue_resource[i], ("android.resource://" + getPackageName() + "/" + dialogue_resource_path[j]), 0.0f, 0));
                 j++;
+            } else {
+                // 人
+                grades.add(new Grade(1, dialogue_resource[i], null, 0.0f, dialogue_resource_time[k]));
+                k++;
             }
         }
         L.i("setDate() = " + grades.toString());
@@ -186,16 +204,29 @@ public class MainActivity extends BaseActivity {
         super.onDestroy();
     }
 
-    @OnClick({R.id.bt_start})
+    @OnClick({R.id.bt_start, R.id.rl_scene})
     public void OnClick(View view) {
-        setScene(R.mipmap.scene_check_in);
-        if (sod == false) {
-            sod = true;
-            if(grades.get(0).getSort()==1) {
-                oSpeak(true, grades.get(dr).getContent_text());
-            }else{
-                oSpeak(false, grades.get(dr).getContent_text());
-            }
+        switch (view.getId()) {
+            case R.id.bt_start:
+                if (sod == false) {
+                    sod = true;
+                    setScene(R.mipmap.scene_check_in);
+                    if (grades.get(0).getSort() == 1) {
+                        oSpeak(true, grades.get(dr).getContent_text());
+                    } else {
+                        oSpeak(false, grades.get(dr).getContent_text());
+                    }
+                }
+                break;
+            case R.id.rl_scene:
+                // 专业的双击算法
+                System.arraycopy(mHits, 1, mHits, 0, mHits.length - 1);
+                mHits[mHits.length - 1] = SystemClock.uptimeMillis();//获取手机开机时间
+                if (mHits[mHits.length - 1] - mHits[0] < 500) {
+                    /**双击的业务逻辑*/
+                    showDialogueText();
+                }
+                break;
         }
     }
 
@@ -247,7 +278,7 @@ public class MainActivity extends BaseActivity {
                     mp.start();
 
                     int time = (int) (mp.getDuration() / 1000);
-//                    grades.add(new Grade(2, speak, uri, 0.0f, time));
+                    //                    grades.add(new Grade(2, speak, uri, 0.0f, time));
                     grades.get(dr).setTime(time);
 
                     // 对话资源开始的时候显示动画
@@ -339,7 +370,14 @@ public class MainActivity extends BaseActivity {
         ise = Ise.createIse(this);
         save_path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/msc/" + SystemClock.currentThreadTimeMillis() + ".wav";
         // 由sec转换成ms
-        final int timeout = (grades.get(dr + 1).getTime())*1000;
+        int temp_time = 0;
+        if (order) {
+            temp_time = (grades.get(0).getTime()) * 1000;
+        }else{
+            temp_time = (grades.get(dr + 1).getTime()) * 1000;
+        }
+        final int timeout = temp_time;
+        L.i("timeout = " + timeout);
         ise.evaluation(save_path, text, timeout, new Ise.FSMListener() {
             @Override
             public void onFiniteStateMachine(int result_state, float score, int time) {
@@ -355,9 +393,9 @@ public class MainActivity extends BaseActivity {
                         break;
                 }
                 L.i("onFiniteStateMachine :" + time);
-//                grades.add(new Grade(1, null, save_path, score, time));
-                grades.get(dr+1).setVoice_path(save_path);
-                grades.get(dr+1).setScore(score);
+                //                grades.add(new Grade(1, null, save_path, score, time));
+                grades.get(dr + 1).setVoice_path(save_path);
+                grades.get(dr + 1).setScore(score);
                 setContent(null, null);
             }
         }, new Ise.Step5Listener() {
@@ -369,7 +407,7 @@ public class MainActivity extends BaseActivity {
                     speak(grades.get(dr).getContent_text(), grades.get(dr).getVoice_path());
                 } else {
                     dr += 2;
-                    if (dr >= grades.size()){
+                    if (dr >= grades.size()) {
                         dr = 0;
 
                         showEvalTotal();
@@ -414,10 +452,10 @@ public class MainActivity extends BaseActivity {
             WindowManager windowManager = getWindowManager();
             Display display = windowManager.getDefaultDisplay();
             WindowManager.LayoutParams lp = dialog.getWindow().getAttributes();
-            lp.width = (int)(display.getWidth()*0.8); //设置宽度
+            lp.width = (int) (display.getWidth() * 0.8); //设置宽度
             dialog.getWindow().setAttributes(lp);
         }
-//        grades.clear();
+        //        grades.clear();
     }
 
     /**
@@ -473,5 +511,29 @@ public class MainActivity extends BaseActivity {
             bitmap = BitmapFactory.decodeResource(resources, id);
         }
         return bitmap;
+    }
+
+    private void showDialogueText() {
+        // 构建一个popupwindow的布局
+        View popupView = MainActivity.this.getLayoutInflater().inflate(R.layout.dialogue_text, null);
+
+        ListView lsvMore = (ListView) popupView.findViewById(R.id.lsvMore);
+
+        dtAdapter = new DialogueTextAdapter((ArrayList<Grade>) grades,this);
+        lsvMore.setAdapter(dtAdapter);
+
+        // 创建PopupWindow对象，指定宽度和高度
+        PopupWindow window = new PopupWindow(popupView, 600, 600);
+        // 设置动画
+        window.setAnimationStyle(R.style.popup_window_anim);
+        window.setBackgroundDrawable(new ColorDrawable(Color.parseColor("#F8F8F8")));
+        // TODO: 2016/5/17 设置可以获取焦点
+        window.setFocusable(true);
+        // TODO: 2016/5/17 设置可以触摸弹出框以外的区域
+        window.setOutsideTouchable(true);
+        // TODO：更新popupwindow的状态
+        window.update();
+        // TODO: 2016/5/17 以下拉的方式显示，并且可以设置显示的位置
+        window.showAtLocation(scene, Gravity.TOP, 0, 0);
     }
 }
