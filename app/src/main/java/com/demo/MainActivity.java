@@ -1,5 +1,6 @@
 package com.demo;
 
+import android.app.Dialog;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -37,6 +38,7 @@ import com.demo.base.BaseActivity;
 import com.demo.business.FrameAnimation;
 import com.demo.business.Ise;
 import com.demo.entity.Grade;
+import com.demo.utils.DialogUtils;
 import com.demo.utils.L;
 import com.demo.utils.permissions.PermissionsActivity;
 import com.demo.utils.permissions.PermissionsChecker;
@@ -88,7 +90,7 @@ public class MainActivity extends BaseActivity {
     private String[] dialogue_resource = {"Is this where I check in for flight number 117?", "Yes,this is.Would you like to check in now?",
             "Yes,of course.", "May I see you ticket and passport,please?", "Sure!Here they are."};
     private int[] dialogue_resource_path = {R.raw.dialogue_2, R.raw.dialogue_4};
-    private int[] dialogue_resource_time = {5, 1,3};
+    private int[] dialogue_resource_time = {5, 1, 3};
     // 循环次数的标志
     private int dr = 0;
     /**
@@ -99,6 +101,8 @@ public class MainActivity extends BaseActivity {
     private Boolean order = false;
     // 总分界面
     private EvalTotalDialog dialog;
+    // 加载界面
+    private Dialog mWeiboDialog;
     // 显示全段文本界面
     private PopupWindow popup;
     // 存储总分界面所需的对象
@@ -151,14 +155,14 @@ public class MainActivity extends BaseActivity {
         int j = 0;
         int k = 0;
         for (int i = 0; i < dialogue_resource.length; i++) {
-//            if (i % 2 == 1) {
-//                // 人
-//                grades.add(new Grade(1, dialogue_resource[i], null, 0.0f, 3));
-//            } else {
-//                // 机器
-//                grades.add(new Grade(2, dialogue_resource[i], ("android.resource://" + getPackageName() + "/" + dialogue_resource_path[j]), 0.0f, 0));
-//                j++;
-//            }
+            //            if (i % 2 == 1) {
+            //                // 人
+            //                grades.add(new Grade(1, dialogue_resource[i], null, 0.0f, 3));
+            //            } else {
+            //                // 机器
+            //                grades.add(new Grade(2, dialogue_resource[i], ("android.resource://" + getPackageName() + "/" + dialogue_resource_path[j]), 0.0f, 0));
+            //                j++;
+            //            }
             if (i % 2 == 1) {
                 // 机器
                 grades.add(new Grade(2, dialogue_resource[i], ("android.resource://" + getPackageName() + "/" + dialogue_resource_path[j]), 0.0f, 0));
@@ -201,6 +205,10 @@ public class MainActivity extends BaseActivity {
             mPlayer.release();
             mPlayer = null;
         }
+        if (ise != null) {
+            ise.destroy();
+            ise = null;
+        }
         super.onDestroy();
     }
 
@@ -210,21 +218,30 @@ public class MainActivity extends BaseActivity {
             case R.id.bt_start:
                 if (sod == false) {
                     sod = true;
-                    setScene(R.mipmap.scene_check_in);
-                    if (grades.get(0).getSort() == 1) {
-                        oSpeak(true, grades.get(dr).getContent_text());
-                    } else {
-                        oSpeak(false, grades.get(dr).getContent_text());
-                    }
+                    mWeiboDialog = DialogUtils.create().createLoadingDialog(this, new DialogUtils.onTimerFinishListener() {
+                        @Override
+                        public void OnTimerFinish() {
+                            DialogUtils.create().closeDialog(mWeiboDialog);
+                            setScene(R.mipmap.scene_check_in);
+                            if (grades.get(0).getSort() == 1) {
+                                oSpeak(true, grades.get(dr).getContent_text());
+                            } else {
+                                oSpeak(false, grades.get(dr).getContent_text());
+                            }
+                        }
+                    });
                 }
                 break;
             case R.id.rl_scene:
-                // 专业的双击算法
-                System.arraycopy(mHits, 1, mHits, 0, mHits.length - 1);
-                mHits[mHits.length - 1] = SystemClock.uptimeMillis();//获取手机开机时间
-                if (mHits[mHits.length - 1] - mHits[0] < 500) {
-                    /**双击的业务逻辑*/
-                    showDialogueText();
+                // 对话开始才让弹出对话文本？
+                if (sod) {
+                    // 专业的双击算法
+                    System.arraycopy(mHits, 1, mHits, 0, mHits.length - 1);
+                    mHits[mHits.length - 1] = SystemClock.uptimeMillis();//获取手机开机时间
+                    if (mHits[mHits.length - 1] - mHits[0] < 500) {
+                        /**双击的业务逻辑*/
+                        showDialogueText();
+                    }
                 }
                 break;
         }
@@ -246,7 +263,7 @@ public class MainActivity extends BaseActivity {
             dr += 1;
             order = o1;
             record_eval(speak);
-            Glide.with(MainActivity.this).load(resource[0]).asBitmap().override(600, 600).into(gif);
+            Glide.with(getApplicationContext()).load(resource[0]).asBitmap().override(600, 600).into(gif);
         } else {
             order = o1;
             speak(grades.get(dr).getContent_text(), grades.get(dr).getVoice_path());
@@ -278,13 +295,12 @@ public class MainActivity extends BaseActivity {
                     mp.start();
 
                     int time = (int) (mp.getDuration() / 1000);
-                    //                    grades.add(new Grade(2, speak, uri, 0.0f, time));
                     grades.get(dr).setTime(time);
 
                     // 对话资源开始的时候显示动画
                     setContent(r_content, speak);
                     List<Bitmap> bitmaps = new ArrayList<>();
-                    int delayTime = 200;
+                    int delayTime = 500;
                     setGif(bitmaps, delayTime, resource, gif);
                 }
             });
@@ -295,7 +311,7 @@ public class MainActivity extends BaseActivity {
                     mPlayer = null;
 
                     // 对话资源结束的时候停止动画
-                    Glide.with(MainActivity.this).load(resource[0]).asBitmap().override(600, 600).into(gif);
+                    Glide.with(getApplicationContext()).load(resource[0]).asBitmap().override(600, 600).into(gif);
 
                     Message msg = Message.obtain();
                     msg.what = TTS_WHAT;
@@ -373,7 +389,7 @@ public class MainActivity extends BaseActivity {
         int temp_time = 0;
         if (order) {
             temp_time = (grades.get(0).getTime()) * 1000;
-        }else{
+        } else {
             temp_time = (grades.get(dr + 1).getTime()) * 1000;
         }
         final int timeout = temp_time;
@@ -392,10 +408,13 @@ public class MainActivity extends BaseActivity {
                     case VOICE_ORDER:
                         break;
                 }
-                L.i("onFiniteStateMachine :" + time);
-                //                grades.add(new Grade(1, null, save_path, score, time));
-                grades.get(dr + 1).setVoice_path(save_path);
-                grades.get(dr + 1).setScore(score);
+                if (order) {
+                    grades.get(0).setVoice_path(save_path);
+                    grades.get(0).setScore(score);
+                } else {
+                    grades.get(dr + 1).setVoice_path(save_path);
+                    grades.get(dr + 1).setScore(score);
+                }
                 setContent(null, null);
             }
         }, new Ise.Step5Listener() {
@@ -446,6 +465,7 @@ public class MainActivity extends BaseActivity {
         if (dialog == null) {
             dialog = new EvalTotalDialog(this);
             dialog.setList((ArrayList) grades);
+            L.i("showEvalTotal = " + grades.toString());
         }
         if (!dialog.isShowing()) {
             dialog.show();
@@ -476,7 +496,7 @@ public class MainActivity extends BaseActivity {
             public void OnGifPlayOver() {
             }
         });
-        fa.composeGif(this, bitmaps, delayTime, isFinishing(), gif);
+        fa.composeGif(getApplicationContext(), bitmaps, delayTime, isFinishing(), gif);
     }
 
     /**
@@ -519,7 +539,7 @@ public class MainActivity extends BaseActivity {
 
         ListView lsvMore = (ListView) popupView.findViewById(R.id.lsvMore);
 
-        dtAdapter = new DialogueTextAdapter((ArrayList<Grade>) grades,this);
+        dtAdapter = new DialogueTextAdapter((ArrayList<Grade>) grades, this);
         lsvMore.setAdapter(dtAdapter);
 
         // 创建PopupWindow对象，指定宽度和高度
@@ -527,13 +547,13 @@ public class MainActivity extends BaseActivity {
         // 设置动画
         window.setAnimationStyle(R.style.popup_window_anim);
         window.setBackgroundDrawable(new ColorDrawable(Color.parseColor("#F8F8F8")));
-        // TODO: 2016/5/17 设置可以获取焦点
+        // 设置可以获取焦点
         window.setFocusable(true);
-        // TODO: 2016/5/17 设置可以触摸弹出框以外的区域
+        // 设置可以触摸弹出框以外的区域
         window.setOutsideTouchable(true);
-        // TODO：更新popupwindow的状态
+        // 更新popupwindow的状态
         window.update();
-        // TODO: 2016/5/17 以下拉的方式显示，并且可以设置显示的位置
+        // 以下拉的方式显示，并且可以设置显示的位置
         window.showAtLocation(scene, Gravity.TOP, 0, 0);
     }
 }

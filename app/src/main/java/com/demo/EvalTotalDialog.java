@@ -10,7 +10,6 @@ import android.widget.TextView;
 
 import com.demo.adapter.EvalListAdapter;
 import com.demo.entity.Grade;
-import com.demo.utils.L;
 
 import java.util.ArrayList;
 
@@ -75,7 +74,6 @@ public class EvalTotalDialog extends Dialog {
     }
 
     private void updateView(int flag, int itemIndex) {
-        L.i("updateView : "+flag+" - "+itemIndex);
         //得到第一个可显示控件的位置，
         int visiblePosition = eval_list.getFirstVisiblePosition();
         switch (flag) {

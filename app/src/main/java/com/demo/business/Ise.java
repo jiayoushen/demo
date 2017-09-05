@@ -38,7 +38,7 @@ import static com.demo.base.Constants.VOICE_ORDER;
 public class Ise {
     private final static String PREFER_NAME = "ise_settings";
     private static Ise d = null;
-
+    float score;
     private SpeechEvaluator mIse;
     // 评测语种
     private String language;
@@ -49,58 +49,91 @@ public class Ise {
     private Toast mToast;
     private Context ctx;
     private String mLastResult;
-
     private FSMListener fsmListener;
-
     private Handler mHandler; // 回调回主线程使用
-
-    float score;
     // 录音储存位置
     private String save_path;
     // 用于记录录音时长
     private long startVoiceT, endVoiceT;
-
-    // FSM回调
-    public interface FSMListener {
-        void onFiniteStateMachine(int result_state, float score, int time);
-    }
-
     private RecordBeginListener recordBeginListener;
-
-    // 开始录音的回调
-    public interface RecordBeginListener {
-        void onRecordBegin();
-    }
-
     private RecordOverListener recordOverListener;
-
-    // 结束录音的回调
-    public interface RecordOverListener {
-        void onRecordOver();
-    }
-
     private TimeChangedListener timeChangedListener;
-
-    // 时间改变的回调
-    public interface TimeChangedListener {
-        void onTimeChanged(int time);
-    }
-
     private Step5Listener step5Listener;
+    // 评测监听接口
+    private EvaluatorListener mEvaluatorListener = new EvaluatorListener() {
+        @Override
+        public void onResult(EvaluatorResult result, boolean isLast) {
+            //            L.d("evaluator result :" + isLast);
 
-    // 第5步结束的回调
-    public interface Step5Listener {
-        void onAfterStep5();
-    }
+            if (isLast) {
+                StringBuilder builder = new StringBuilder();
+                builder.append(result.getResultString());
 
-    public static Ise createIse(Context var0) {
-        synchronized (Ise.class) {
-            if (d == null) {
-                d = new Ise(var0);
+                if (!TextUtils.isEmpty(builder)) {
+                    //                    mResultEditText.setText(builder.toString());
+                }
+                mLastResult = builder.toString();
+                resultParse();
+                showTip("评测结束");
+
             }
         }
-        return d;
-    }
+
+        @Override
+        public void onError(SpeechError error) {
+            if (error != null) {
+                showTip("error:" + error.getErrorCode() + "," + error.getErrorDescription());
+                //                L.i("error:" + error.getErrorCode() + "," + error.getErrorDescription());
+                if (error.getErrorCode() == 11401) {
+                    //                    finite_state_machine(NO_ANSWER);
+                    if (fsmListener != null)
+                        fsmListener.onFiniteStateMachine(NO_ANSWER, 0.0f, 0);
+                }
+            } else {
+                //                L.d("evaluator over");
+            }
+        }
+
+        @Override
+        public void onBeginOfSpeech() {
+            // 此回调表示：sdk内部录音机已经准备好了，用户可以开始语音输入
+            //            L.d("evaluator begin");
+            startVoiceT = System.currentTimeMillis();
+            ;
+            if (recordBeginListener != null) {
+                recordBeginListener.onRecordBegin();
+            }
+        }
+
+        @Override
+        public void onEndOfSpeech() {
+            // 此回调表示：检测到了语音的尾端点，已经进入识别过程，不再接受语音输入
+            //            L.d("evaluator stoped");
+            endVoiceT = System.currentTimeMillis();
+            if (recordOverListener != null) {
+                recordOverListener.onRecordOver();
+            }
+        }
+
+        @Override
+        public void onVolumeChanged(int volume, byte[] data) {
+            showTip("当前音量：" + volume);
+            //            L.d("返回音频数据：" + data.length);
+            // 当音量大于5的时候，默认为用户说话了
+            if (timeChangedListener != null) {
+                timeChangedListener.onTimeChanged((int) (System.currentTimeMillis() - startVoiceT));
+            }
+        }
+
+        @Override
+        public void onEvent(int eventType, int arg1, int arg2, Bundle obj) {
+            // 以下代码用于获取与云端的会话id，当业务出错时将会话id提供给技术支持人员，可用于查询会话日志，定位出错原因
+            //	if (SpeechEvent.EVENT_SESSION_ID == eventType) {
+            //		String sid = obj.getString(SpeechEvent.KEY_EVENT_SESSION_ID);
+            //		Log.d(TAG, "session id =" + sid);
+            //	}
+        }
+    };
 
     public Ise(Context ctx) {
         this.ctx = ctx;
@@ -121,8 +154,31 @@ public class Ise {
         };
     }
 
+    public static Ise createIse(Context var0) {
+        synchronized (Ise.class) {
+            if (d == null) {
+                d = new Ise(var0);
+            }
+        }
+        return d;
+    }
+
+    /**
+     * 删除文件
+     *
+     * @param root
+     */
+    //删除文件
+    public static void delFile(String root) {
+        File file = new File(root);
+        if (file.isFile()) {
+            file.delete();
+        }
+        file.exists();
+    }
+
     public void evaluation(String save_path, String text, int timeout, FSMListener fsmListener, Step5Listener step5Listener, RecordBeginListener recordBeginListener, RecordOverListener recordOverListener
-    ,TimeChangedListener timeChangedListener) {
+            , TimeChangedListener timeChangedListener) {
         if (null == mIse) {
             // 创建单例失败，与 21001 错误为同样原因，参考 http://bbs.xfyun.cn/forum.php?mod=viewthread&tid=9688
             this.showTip("创建对象失败，请确认 libmsc.so 放置正确，且有调用 createUtility 进行初始化");
@@ -169,81 +225,6 @@ public class Ise {
         mIse.setParameter(SpeechConstant.ISE_AUDIO_PATH, save_path);
     }
 
-    // 评测监听接口
-    private EvaluatorListener mEvaluatorListener = new EvaluatorListener() {
-        @Override
-        public void onResult(EvaluatorResult result, boolean isLast) {
-            //            L.d("evaluator result :" + isLast);
-
-            if (isLast) {
-                StringBuilder builder = new StringBuilder();
-                builder.append(result.getResultString());
-
-                if (!TextUtils.isEmpty(builder)) {
-                    //                    mResultEditText.setText(builder.toString());
-                }
-                mLastResult = builder.toString();
-                resultParse();
-                showTip("评测结束");
-
-            }
-        }
-
-        @Override
-        public void onError(SpeechError error) {
-            if (error != null) {
-                showTip("error:" + error.getErrorCode() + "," + error.getErrorDescription());
-                //                L.i("error:" + error.getErrorCode() + "," + error.getErrorDescription());
-                if (error.getErrorCode() == 11401) {
-                    //                    finite_state_machine(NO_ANSWER);
-                    if (fsmListener != null)
-                        fsmListener.onFiniteStateMachine(NO_ANSWER, 0.0f, 0);
-                }
-            } else {
-                //                L.d("evaluator over");
-            }
-        }
-
-        @Override
-        public void onBeginOfSpeech() {
-            // 此回调表示：sdk内部录音机已经准备好了，用户可以开始语音输入
-            //            L.d("evaluator begin");
-            startVoiceT = System.currentTimeMillis();;
-            if (recordBeginListener != null) {
-                recordBeginListener.onRecordBegin();
-            }
-        }
-
-        @Override
-        public void onEndOfSpeech() {
-            // 此回调表示：检测到了语音的尾端点，已经进入识别过程，不再接受语音输入
-            //            L.d("evaluator stoped");
-            endVoiceT = System.currentTimeMillis();
-            if (recordOverListener != null) {
-                recordOverListener.onRecordOver();
-            }
-        }
-
-        @Override
-        public void onVolumeChanged(int volume, byte[] data) {
-            showTip("当前音量：" + volume);
-            //            L.d("返回音频数据：" + data.length);
-            // 当音量大于5的时候，默认为用户说话了
-            if (timeChangedListener != null) {
-                timeChangedListener.onTimeChanged((int)(System.currentTimeMillis()-startVoiceT));
-            }
-        }
-
-        @Override
-        public void onEvent(int eventType, int arg1, int arg2, Bundle obj) {
-            // 以下代码用于获取与云端的会话id，当业务出错时将会话id提供给技术支持人员，可用于查询会话日志，定位出错原因
-            //	if (SpeechEvent.EVENT_SESSION_ID == eventType) {
-            //		String sid = obj.getString(SpeechEvent.KEY_EVENT_SESSION_ID);
-            //		Log.d(TAG, "session id =" + sid);
-            //	}
-        }
-    };
-
     /**
      * 解析最终结果
      */
@@ -255,7 +236,7 @@ public class Ise {
 
             if (null != result) {
                 //                mResultEditText.setText(result.toString());
-                //                L.i(result.toString());
+                L.i("---ljh", result.toString());
                 // 根据要求解析result结果
                 int result_state = result2Int(result.toString());
                 //                finite_state_machine(result_state);
@@ -290,8 +271,6 @@ public class Ise {
         if (result.contains("总分：")) {
             int index = result.indexOf("总分：");
             String substring = result.substring(index + 3, index + 6);
-            L.i("substring = " + substring);
-            //            float score = Float.parseFloat(substring);
             try {
                 score = Float.parseFloat(substring);
             } catch (Exception e) {
@@ -392,17 +371,28 @@ public class Ise {
         return isOk;
     }
 
-    /**
-     * 删除文件
-     *
-     * @param root
-     */
-    //删除文件
-    public static void delFile(String root) {
-        File file = new File(root);
-        if (file.isFile()) {
-            file.delete();
-        }
-        file.exists();
+    // FSM回调
+    public interface FSMListener {
+        void onFiniteStateMachine(int result_state, float score, int time);
+    }
+
+    // 开始录音的回调
+    public interface RecordBeginListener {
+        void onRecordBegin();
+    }
+
+    // 结束录音的回调
+    public interface RecordOverListener {
+        void onRecordOver();
+    }
+
+    // 时间改变的回调
+    public interface TimeChangedListener {
+        void onTimeChanged(int time);
+    }
+
+    // 第5步结束的回调
+    public interface Step5Listener {
+        void onAfterStep5();
     }
 }
