@@ -22,3 +22,7 @@
 
 2017.9.4	显示全段对话文本：双击弹出popupwindow，popupwindow显示封装在grades里面的数据；添加一组完整的对话，解决由人先读的时
 		候会出现录音时间不正确的一个BUG；思考怎样去做开始提示？(寻找游戏开始相关的设计，或参考其他app)
+		
+2017.9.5	思考怎样去做开始提示？弹出一个透明dialog，给上倒计时，handler+runnable实现倒计时；closeDialog(Dialog mDialog)为静	
+		态方法时mDialog不为空，但是mDialog.isShowing()为false，改为普通方法没问题；先录音的话，第一段话无声音的问题，是逻	
+		辑出了点问题。
