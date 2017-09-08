@@ -88,6 +88,8 @@ public class Ise {
                     //                    finite_state_machine(NO_ANSWER);
                     if (fsmListener != null)
                         fsmListener.onFiniteStateMachine(NO_ANSWER, 0.0f, 0);
+                    // TODO: 关健:录音失败的话,是继续还是停止(目前是继续)
+                    mHandler.sendEmptyMessageDelayed(ISE_WHAT, ISE_DELAYTIME);
                 }
             } else {
                 //                L.d("evaluator over");

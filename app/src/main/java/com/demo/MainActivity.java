@@ -22,6 +22,7 @@ import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -40,6 +41,7 @@ import com.demo.business.Ise;
 import com.demo.entity.Grade;
 import com.demo.utils.DialogUtils;
 import com.demo.utils.L;
+import com.demo.utils.ScreenUtils;
 import com.demo.utils.permissions.PermissionsActivity;
 import com.demo.utils.permissions.PermissionsChecker;
 import com.github.lzyzsd.circleprogress.DonutProgress;
@@ -90,7 +92,7 @@ public class MainActivity extends BaseActivity {
     private String[] dialogue_resource = {"Is this where I check in for flight number 117?", "Yes,this is.Would you like to check in now?",
             "Yes,of course.", "May I see you ticket and passport,please?", "Sure!Here they are."};
     private int[] dialogue_resource_path = {R.raw.dialogue_2, R.raw.dialogue_4};
-    private int[] dialogue_resource_time = {5, 1, 3};
+    private int[] dialogue_resource_time = {5, 3, 3};
     // 循环次数的标志
     private int dr = 0;
     /**
@@ -119,6 +121,8 @@ public class MainActivity extends BaseActivity {
     private boolean sod;
     // 用于判断双击
     private long[] mHits = new long[2];
+    // 显示本段对话的popup
+    private PopupWindow window;
     private DialogueTextAdapter dtAdapter;
 
     @Override
@@ -149,6 +153,12 @@ public class MainActivity extends BaseActivity {
         });
 
         setDate();
+
+        ViewGroup.LayoutParams lp = gif.getLayoutParams();
+        int screenHeight = ScreenUtils.getScreenHeight(this)/2;
+        L.i(screenHeight+" -");
+        lp.width = screenHeight;
+        lp.height = screenHeight;
     }
 
     private void setDate() {
@@ -209,6 +219,12 @@ public class MainActivity extends BaseActivity {
             ise.destroy();
             ise = null;
         }
+        if(window!=null){
+            if(window.isShowing()){
+                window.dismiss();
+            }
+            window = null;
+        }
         super.onDestroy();
     }
 
@@ -263,7 +279,7 @@ public class MainActivity extends BaseActivity {
             dr += 1;
             order = o1;
             record_eval(speak);
-            Glide.with(getApplicationContext()).load(resource[0]).asBitmap().override(600, 600).into(gif);
+            Glide.with(getApplicationContext()).load(resource[0]).asBitmap().override(ScreenUtils.getScreenHeight(this)/2,ScreenUtils.getScreenHeight(this)/2).into(gif);
         } else {
             order = o1;
             speak(grades.get(dr).getContent_text(), grades.get(dr).getVoice_path());
@@ -311,7 +327,7 @@ public class MainActivity extends BaseActivity {
                     mPlayer = null;
 
                     // 对话资源结束的时候停止动画
-                    Glide.with(getApplicationContext()).load(resource[0]).asBitmap().override(600, 600).into(gif);
+                    Glide.with(getApplicationContext()).load(resource[0]).asBitmap().override(ScreenUtils.getScreenHeight(getApplicationContext())/2, ScreenUtils.getScreenHeight(getApplicationContext())/2).into(gif);
 
                     Message msg = Message.obtain();
                     msg.what = TTS_WHAT;
@@ -543,7 +559,7 @@ public class MainActivity extends BaseActivity {
         lsvMore.setAdapter(dtAdapter);
 
         // 创建PopupWindow对象，指定宽度和高度
-        PopupWindow window = new PopupWindow(popupView, 600, 600);
+        window = new PopupWindow(popupView, 600, 600);
         // 设置动画
         window.setAnimationStyle(R.style.popup_window_anim);
         window.setBackgroundDrawable(new ColorDrawable(Color.parseColor("#F8F8F8")));

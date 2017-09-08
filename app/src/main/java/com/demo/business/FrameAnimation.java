@@ -13,6 +13,7 @@ import android.widget.ImageView;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.animation.GlideAnimation;
 import com.bumptech.glide.request.target.SimpleTarget;
+import com.demo.utils.ScreenUtils;
 import com.march.dev.utils.GlideUtils;
 import com.march.gifmaker.GifMaker;
 
@@ -36,20 +37,6 @@ public class FrameAnimation {
 
     private OnGifPlayOverListener gifPlayOverListener;
 
-    // GIF播放完毕的接口回调
-    public interface OnGifPlayOverListener {
-        void OnGifPlayOver();
-    }
-
-    public static FrameAnimation createFrameAnimation(OnGifPlayOverListener var0) {
-        synchronized(FrameAnimation.class) {
-            if(d == null) {
-                d = new FrameAnimation(var0);
-            }
-        }
-        return d;
-    }
-
     public FrameAnimation(OnGifPlayOverListener Listener){
         this.gifPlayOverListener = Listener;
         mHandler = new Handler(Looper.getMainLooper()) {
@@ -61,6 +48,15 @@ public class FrameAnimation {
                 super.handleMessage(msg);
             }
         };
+    }
+
+    public static FrameAnimation createFrameAnimation(OnGifPlayOverListener var0) {
+        synchronized(FrameAnimation.class) {
+            if(d == null) {
+                d = new FrameAnimation(var0);
+            }
+        }
+        return d;
     }
 
     /**
@@ -111,7 +107,7 @@ public class FrameAnimation {
                             GlideUtils.with(ctx, outPath)
                                     // 播放次数 -1为forever
                                     .loopCount(-1)
-                                    .size(600, 600)
+                                    .size(ScreenUtils.getScreenHeight(ctx)/2,ScreenUtils.getScreenHeight(ctx)/2)
                                     .into(image);
                         }
                     }
@@ -151,5 +147,10 @@ public class FrameAnimation {
         //        image.setBackgroundDrawable(anim); //将动画设置为ImageView背景
         image.setImageDrawable(anim);
         anim.start();  //开始动画
+    }
+
+    // GIF播放完毕的接口回调
+    public interface OnGifPlayOverListener {
+        void OnGifPlayOver();
     }
 }
